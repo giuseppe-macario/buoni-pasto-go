@@ -1,4 +1,4 @@
-name: Build for macOS and Windows
+name: Build (macOS .app + Windows .exe)
 
 on:
   workflow_dispatch:
@@ -11,24 +11,27 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24.x"
           cache: false
 
       - name: Resolve deps (workspace only)
         run: go mod tidy
 
-      - name: Install fyne
-        run: go install fyne.io/fyne/v2/cmd/fyne@latest
+      - name: Install fyne tool
+        run: go install fyne.io/tools/cmd/fyne@latest
 
       - name: Package macOS .app
         run: |
           mkdir -p dist
-          fyne package -os darwin -appID "com.example.buoni-pasto" -name "Buoni Pasto" -release
-          # fyne package outputs the .app in current directory by default
+          fyne package \
+            -os darwin \
+            -appID "men.giuseppemacario.buoni-pasto" \
+            -name "Buoni Pasto" \
+            -release \
+            -icon Icon.png
           mv "Buoni Pasto.app" dist/
 
-      # Zip the .app (recommended for artifacts)
-      - name: Zip .app
+      - name: Zip macOS .app
         run: |
           cd dist
           ditto -c -k --sequesterRsrc --keepParent "Buoni Pasto.app" "buoni-pasto-macOS.app.zip"
@@ -46,16 +49,21 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.24.x"
           cache: false
 
       - name: Resolve deps (workspace only)
         run: go mod tidy
 
-      - name: Build exe
+      - name: Install fyne tool
+        run: go install fyne.io/tools/cmd/fyne@latest
+
+      - name: Package Windows .exe (with icon)
+        shell: pwsh
         run: |
-          mkdir dist
-          go build -v -o dist\buoni-pasto.exe .
+          New-Item -ItemType Directory -Force dist | Out-Null
+          fyne package -os windows -name "Buoni Pasto" -release -icon Icon.png
+          Move-Item "Buoni Pasto.exe" "dist\buoni-pasto.exe" -Force
 
       - name: Upload artifact (Windows)
         uses: actions/upload-artifact@v4
