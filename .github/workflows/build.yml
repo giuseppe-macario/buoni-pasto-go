@@ -1,38 +1,64 @@
-name: build
+name: Build for macOS and Windows
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-
+  macos:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+          cache: false
 
-      # Dipendenze native per Fyne su Linux (per compilare)
-      - name: Install Linux deps
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xorg-dev libgl1-mesa-dev
-
-      - name: Download deps
+      - name: Resolve deps (workspace only)
         run: go mod tidy
 
-      - name: Build
-        run: go build -v -o dist/buoni-pasto${{ runner.os == 'Windows' && '.exe' || '' }} .
+      - name: Install fyne
+        run: go install fyne.io/fyne/v2/cmd/fyne@latest
 
-      - name: Upload artifact
+      - name: Package macOS .app
+        run: |
+          mkdir -p dist
+          fyne package -os darwin -appID "com.example.buoni-pasto" -name "Buoni Pasto" -release
+          # fyne package outputs the .app in current directory by default
+          mv "Buoni Pasto.app" dist/
+
+      # Zip the .app (recommended for artifacts)
+      - name: Zip .app
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent "Buoni Pasto.app" "buoni-pasto-macOS.app.zip"
+
+      - name: Upload artifact (macOS)
         uses: actions/upload-artifact@v4
         with:
-          name: buoni-pasto-${{ runner.os }}
-          path: dist/*
+          name: buoni-pasto-macOS-app
+          path: dist/buoni-pasto-macOS.app.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: false
+
+      - name: Resolve deps (workspace only)
+        run: go mod tidy
+
+      - name: Build exe
+        run: |
+          mkdir dist
+          go build -v -o dist\buoni-pasto.exe .
+
+      - name: Upload artifact (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: buoni-pasto-Windows
+          path: dist\buoni-pasto.exe
